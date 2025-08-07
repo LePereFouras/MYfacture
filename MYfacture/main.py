@@ -90,7 +90,7 @@ class FacturationApp(tk.Tk):
         frame = self.facture_frame
         
         # Add client info fields above the product list
-        client_labels = ["Nom du client", "Adresse client", "Téléphone client", "E-mail client"]
+        client_labels = ["Nom du client", "Adresse client", "Téléphone client", "E-mail client", "N° TVA client"]
         self.client_vars = {}
         for i, label_text in enumerate(client_labels):
             ttk.Label(frame, text=label_text).grid(row=i, column=0, sticky='w', padx=10, pady=2)
@@ -205,6 +205,7 @@ class FacturationApp(tk.Tk):
         pdf.cell(0, 8, f"Adresse: {self.client_vars.get('Adresse client').get()}", ln=True)
         pdf.cell(0, 8, f"Téléphone: {self.client_vars.get('Téléphone client').get()}", ln=True)
         pdf.cell(0, 8, f"E-mail: {self.client_vars.get('E-mail client').get()}", ln=True)
+        pdf.cell(0, 8, f"N° TVA: {self.client_vars.get('N° TVA client').get()}", ln=True)
 
         pdf.ln(10)
 
