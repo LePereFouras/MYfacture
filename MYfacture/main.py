@@ -1,68 +1,221 @@
-import tkinter as tk
+import customtkinter as ctk
+import tkinter as tk # Keep tkinter for some specific functionalities if needed, but we'll primarily use ctk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import json
 import os
 from fpdf import FPDF
 import webbrowser
+import time
 
-class FacturationApp(tk.Tk):
+# Change FacturationApp to inherit from ctk.CTk
+class FacturationApp(ctk.CTk):
     PROFILE_FILE = "profil_entreprise.json"
 
     def __init__(self):
         super().__init__()
-        self.title("Logiciel de Facturation")
-        self.geometry("800x600")
+        self.title("MYfacture - Logiciel de Facturation")
+        self.geometry("900x650")
+        # ctk handles appearance mode and color themes differently
+        ctk.set_appearance_mode("light")  # Modes: "system" (default), "light", "dark"
+        ctk.set_default_color_theme("blue")  # Themes: "blue" (default), "dark-blue", "green"
 
-        self.style = ttk.Style(self)
-        self.style.theme_use('clam')
+        # Define a new pastel color palette for Soft UI/Glassmorphism
+        # CustomTkinter uses its own theming, but we can still define colors for custom elements
+        self.colors = {
+            "primary": "#a2d2ff",  # Light Blue
+            "secondary": "#bde0fe", # Lighter Blue
+            "accent": "#ffc8dd",   # Pink
+            "text": "#4a4e69",     # Dark Blue-Grey
+            "light_bg": "#f8f8f8", # Very light grey for frames
+            "white": "#ffffff",   # White
+            "shadow": "#dcdcdc"   # Light grey for subtle shadows
+        }
+        
+        # With CustomTkinter, we don't configure ttk.Style in the same way for ctk widgets.
+        # We will use ctk's built-in theming and widget properties for styling.
+        # Remove or comment out the old ttk.Style configurations:
+        # self.style = ttk.Style(self)
+        # self.style.theme_use('clam')
+        # self.style.configure("TFrame", ...)
+        # ... (all other self.style.configure and self.style.map lines)
 
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill='both', expand=True)
+        # Create a main frame using ctk.CTkFrame
+        main_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=self.colors["light_bg"], border_color=self.colors["shadow"], border_width=1)
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
 
-        self.profil_frame = ttk.Frame(self.notebook)
-        self.facture_frame = ttk.Frame(self.notebook)
-        self.historique_frame = ttk.Frame(self.notebook)
+        # Logo and title using ctk.CTkLabel
+        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent") # Transparent background for header
+        header_frame.pack(fill='x', pady=(0, 20))
+        
+        title_label = ctk.CTkLabel(header_frame, text="MYfacture", 
+                                font=ctk.CTkFont(size=28, weight="bold"), 
+                                text_color=self.colors["primary"])
+        title_label.pack(side='top', pady=10)
+        
+        subtitle_label = ctk.CTkLabel(header_frame, text="Solution de facturation professionnelle", 
+                                  font=ctk.CTkFont(size=14), 
+                                  text_color=self.colors["text"])
+        subtitle_label.pack(side='top')
 
-        self.notebook.add(self.profil_frame, text="Profil Société")
-        self.notebook.add(self.facture_frame, text="Nouvelle Facture")
-        self.notebook.add(self.historique_frame, text="Historique")
+        # Notebook with tabs - CustomTkinter does not have a direct CTkNotebook equivalent.
+        # We will simulate it using CTkSegmentedButton and CTkFrames.
+        self.tab_names = ["Profil Société", "Nouvelle Facture", "Historique"]
+        self.tab_frames = {}
 
-        self.create_profil_form()
-        self.create_facture_form()
-        self.create_historique_view()
+        self.segmented_button = ctk.CTkSegmentedButton(main_frame, values=self.tab_names,
+                                                        command=self.change_tab,
+                                                        font=ctk.CTkFont(size=12, weight="bold"),
+                                                        selected_color=self.colors["primary"],
+                                                        selected_hover_color=self.colors["secondary"],
+                                                        unselected_color=self.colors["light_bg"],
+                                                        unselected_hover_color=self.colors["shadow"],
+                                                        text_color=self.colors["text"])
+        self.segmented_button.pack(fill='x', pady=(10, 20))
 
-    def create_profil_form(self):
-        frame = self.profil_frame
+        # Container for tab content frames
+        self.tab_content_container = ctk.CTkFrame(main_frame, fg_color="transparent")
+        self.tab_content_container.pack(fill='both', expand=True)
+
+        for tab_name in self.tab_names:
+            frame = ctk.CTkFrame(self.tab_content_container, corner_radius=10, fg_color=self.colors["white"], border_color=self.colors["shadow"], border_width=1)
+            frame.pack(fill='both', expand=True, padx=10, pady=10)
+            self.tab_frames[tab_name] = frame
+
+        # Initial tab display
+        self.segmented_button.set(self.tab_names[0])
+        self.change_tab(self.tab_names[0])
+
+        # Pied de page using ctk.CTkLabel
+        footer_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        footer_frame.pack(fill='x', pady=(20, 0))
+        
+        footer_label = ctk.CTkLabel(footer_frame, text="© 2023 MYfacture - Tous droits réservés", 
+                                font=ctk.CTkFont(size=9), 
+                                text_color=self.colors["text"])
+        footer_label.pack(side='right')
+
+        # Call the form creation methods, passing the correct frame
+        self.create_profil_form(self.tab_frames["Profil Société"])
+        self.create_facture_form(self.tab_frames["Nouvelle Facture"])
+        self.create_historique_view(self.tab_frames["Historique"])
+
+    def change_tab(self, selected_tab):
+        # Hide all tab frames
+        for tab_name in self.tab_names:
+            self.tab_frames[tab_name].pack_forget()
+        # Show the selected tab frame
+        self.tab_frames[selected_tab].pack(fill='both', expand=True)
+
+    # Modify create_profil_form to accept a frame argument
+    def create_profil_form(self, parent_frame):
+        frame = parent_frame
+        
+        # Titre de la section
+        title_label = ctk.CTkLabel(frame, text="Informations de votre entreprise", 
+                               font=ctk.CTkFont(size=16, weight="bold"), 
+                               text_color=self.colors["primary"])
+        title_label.grid(row=0, column=0, columnspan=3, sticky='w', padx=10, pady=(0, 20))
 
         labels = ["Nom de la société", "Adresse", "Téléphone", "E-mail", "Numéro SIRET", "Logo"]
         self.entries = {}
 
+        # Créer un cadre pour les champs de formulaire
+        form_frame = ctk.CTkFrame(frame, fg_color="transparent") # Transparent background for form frame
+        form_frame.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
+
         for i, label_text in enumerate(labels[:-1]):
-            label = ttk.Label(frame, text=label_text)
-            label.grid(row=i, column=0, sticky='w', padx=10, pady=5)
-            entry = ttk.Entry(frame, width=50)
-            entry.grid(row=i, column=1, padx=10, pady=5)
+            label = ctk.CTkLabel(form_frame, text=label_text, font=ctk.CTkFont(size=10))
+            label.grid(row=i, column=0, sticky='w', padx=10, pady=10)
+            
+            entry = ctk.CTkEntry(form_frame, width=300) # Use CTkEntry
+            entry.grid(row=i, column=1, padx=10, pady=10)
             self.entries[label_text] = entry
 
-        # Logo upload
-        logo_label = ttk.Label(frame, text="Logo")
-        logo_label.grid(row=len(labels)-1, column=0, sticky='w', padx=10, pady=5)
+    # You will need to modify create_facture_form and create_historique_view similarly
+    # to accept a parent_frame argument and use ctk widgets.
+    # I will provide those modifications in the next steps.
+
+    def create_profil_form(self):
+        frame = self.profil_frame
+        
+        # Titre de la section
+        title_label = ttk.Label(frame, text="Informations de votre entreprise", 
+                               font=("Segoe UI", 16, "bold"), 
+                               foreground=self.colors["primary"])
+        title_label.grid(row=0, column=0, columnspan=3, sticky='w', padx=10, pady=(0, 20))
+
+        labels = ["Nom de la société", "Adresse", "Téléphone", "E-mail", "Numéro SIRET", "Logo"]
+        self.entries = {}
+
+        # Créer un cadre pour les champs de formulaire
+        form_frame = ttk.Frame(frame)
+        form_frame.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
+
+        for i, label_text in enumerate(labels[:-1]):
+            label = ttk.Label(form_frame, text=label_text, font=("Segoe UI", 10))
+            label.grid(row=i, column=0, sticky='w', padx=10, pady=10)
+            
+            entry = ttk.Entry(form_frame, width=50)
+            entry.grid(row=i, column=1, padx=10, pady=10)
+            self.entries[label_text] = entry
+
+        # Logo upload avec un style amélioré
+        logo_label = ttk.Label(form_frame, text="Logo", font=("Segoe UI", 10))
+        logo_label.grid(row=len(labels)-1, column=0, sticky='w', padx=10, pady=10)
+        
+        logo_frame = ttk.Frame(form_frame)
+        logo_frame.grid(row=len(labels)-1, column=1, sticky='w', padx=10, pady=10)
+        
         self.logo_path_var = tk.StringVar()
-        logo_entry = ttk.Entry(frame, textvariable=self.logo_path_var, width=50, state='readonly')
-        logo_entry.grid(row=len(labels)-1, column=1, padx=10, pady=5)
-        logo_button = ttk.Button(frame, text="Charger logo", command=self.load_logo)
-        logo_button.grid(row=len(labels)-1, column=2, padx=10, pady=5)
+        logo_entry = ttk.Entry(logo_frame, textvariable=self.logo_path_var, width=40, state='readonly')
+        logo_entry.pack(side='left', padx=(0, 10))
+        
+        logo_button = ttk.Button(logo_frame, text="Parcourir...", command=self.load_logo)
+        logo_button.pack(side='left')
 
-        # Save button
-        save_button = ttk.Button(frame, text="Sauvegarder", command=self.save_profile)
-        save_button.grid(row=len(labels), column=1, pady=20)
+        # Cadre pour le bouton de sauvegarde
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=2, column=0, columnspan=2, sticky='e', padx=10, pady=20)
+        
+        save_button = ttk.Button(button_frame, text="Sauvegarder le profil", command=self.save_profile)
+        save_button.pack(padx=5)
 
+        # Prévisualisation du logo
+        self.logo_preview_label = ttk.Label(frame, text="Aperçu du logo", font=("Segoe UI", 10))
+        self.logo_preview_label.grid(row=1, column=1, sticky='n', padx=10, pady=10)
+        
+        self.logo_preview = ttk.Label(frame)
+        self.logo_preview.grid(row=1, column=1, sticky='n', padx=10, pady=40)
+
+        # Charger le profil existant
         self.load_profile()
+        
+        # Configurer l'expansion des lignes et colonnes
+        frame.columnconfigure(0, weight=1)
+        frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(1, weight=1)
 
     def load_logo(self):
         file_path = filedialog.askopenfilename(title="Choisir un logo", filetypes=[("Images", "*.png *.jpg *.jpeg *.gif")])
         if file_path:
             self.logo_path_var.set(file_path)
+            
+            # Prévisualisation du logo
+            try:
+                from PIL import Image, ImageTk
+                
+                # Ouvrir et redimensionner l'image
+                img = Image.open(file_path)
+                img = img.resize((150, 150), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                
+                # Mettre à jour la prévisualisation
+                self.logo_preview.configure(image=photo)
+                self.logo_preview.image = photo  # Garder une référence
+            except ImportError:
+                self.logo_preview.configure(text="Prévisualisation non disponible\n(PIL non installé)")
+            except Exception as e:
+                self.logo_preview.configure(text=f"Erreur: {e}")
 
     def save_profile(self):
         data = {key: entry.get() for key, entry in self.entries.items()}
@@ -89,57 +242,117 @@ class FacturationApp(tk.Tk):
     def create_facture_form(self):
         frame = self.facture_frame
         
-        # Add client info fields above the product list
+        # Titre de la section
+        title_label = ttk.Label(frame, text="Création d'une nouvelle facture", 
+                               font=("Segoe UI", 16, "bold"), 
+                               foreground=self.colors["primary"])
+        title_label.grid(row=0, column=0, columnspan=6, sticky='w', padx=10, pady=(0, 20))
+        
+        # Section client
+        client_frame = ttk.Frame(frame, padding=10)
+        client_frame.grid(row=1, column=0, columnspan=6, sticky='ew', padx=10, pady=5)
+        
+        client_title = ttk.Label(client_frame, text="Informations client", 
+                                font=("Segoe UI", 12, "bold"), 
+                                foreground=self.colors["secondary"])
+        client_title.grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 10))
+        
+        # Add client info fields
         client_labels = ["Nom du client", "Adresse client", "Téléphone client", "E-mail client", "N° TVA client"]
         self.client_vars = {}
+        
         for i, label_text in enumerate(client_labels):
-            ttk.Label(frame, text=label_text).grid(row=i, column=0, sticky='w', padx=10, pady=2)
+            ttk.Label(client_frame, text=label_text).grid(row=i+1, column=0, sticky='w', padx=10, pady=5)
             var = tk.StringVar()
-            entry = ttk.Entry(frame, textvariable=var, width=50)
-            entry.grid(row=i, column=1, columnspan=4, sticky='w', padx=10, pady=2)
+            entry = ttk.Entry(client_frame, textvariable=var, width=50)
+            entry.grid(row=i+1, column=1, sticky='w', padx=10, pady=5)
             self.client_vars[label_text] = var
-
-        # Adjust the starting row for product list to be after client info
-        product_start_row = len(client_labels) + 1
-
+        
+        # Section produits
+        products_frame = ttk.Frame(frame, padding=10)
+        products_frame.grid(row=2, column=0, columnspan=6, sticky='nsew', padx=10, pady=10)
+        
+        products_title = ttk.Label(products_frame, text="Détails des produits/services", 
+                                  font=("Segoe UI", 12, "bold"), 
+                                  foreground=self.colors["secondary"])
+        products_title.grid(row=0, column=0, columnspan=6, sticky='w', pady=(0, 10))
+        
+        # Tableau des produits
         columns = ("Produit", "Prix Unitaire HT", "Quantité", "TVA (%)", "Remise (%)", "Total HT")
-        self.tree = ttk.Treeview(frame, columns=columns, show='headings')
+        self.tree = ttk.Treeview(products_frame, columns=columns, show='headings', height=6)
+        
         for col in columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
-        self.tree.grid(row=product_start_row, column=0, columnspan=8, padx=10, pady=10, sticky='nsew')
-
+            width = 100 if col != "Produit" else 200
+            self.tree.column(col, width=width)
+        
+        self.tree.grid(row=1, column=0, columnspan=6, padx=5, pady=5, sticky='nsew')
+        
+        # Scrollbar pour le tableau
+        scrollbar = ttk.Scrollbar(products_frame, orient="vertical", command=self.tree.yview)
+        scrollbar.grid(row=1, column=6, sticky='ns')
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Champs pour ajouter un produit
+        entry_frame = ttk.Frame(products_frame)
+        entry_frame.grid(row=2, column=0, columnspan=6, sticky='ew', padx=5, pady=10)
+        
         labels = ["Produit", "Prix Unitaire HT", "Quantité", "TVA (%)", "Remise (%)"]
         self.entry_vars = {}
+        
         for i, label_text in enumerate(labels):
-            ttk.Label(frame, text=label_text).grid(row=product_start_row+1, column=i, padx=5, pady=5)
+            ttk.Label(entry_frame, text=label_text).grid(row=0, column=i, padx=5, pady=5)
             var = tk.StringVar()
-            entry = ttk.Entry(frame, textvariable=var, width=15)
-            entry.grid(row=product_start_row+2, column=i, padx=5, pady=5)
+            width = 15 if label_text != "Produit" else 30
+            entry = ttk.Entry(entry_frame, textvariable=var, width=width)
+            entry.grid(row=1, column=i, padx=5, pady=5)
             self.entry_vars[label_text] = var
-
-        add_button = ttk.Button(frame, text="Ajouter ligne", command=self.add_product_line)
-        add_button.grid(row=product_start_row+2, column=len(labels), padx=5, pady=5)
-
-        delete_button = ttk.Button(frame, text="Supprimer ligne", command=self.delete_product_line)
-        delete_button.grid(row=product_start_row+2, column=len(labels)+1, padx=5, pady=5)
-
-        pdf_button = ttk.Button(frame, text="Générer PDF", command=self.generate_pdf)
-        pdf_button.grid(row=product_start_row+3, column=0, padx=10, pady=10, sticky='w')
-
+        
+        # Boutons d'action pour les produits
+        button_frame = ttk.Frame(products_frame)
+        button_frame.grid(row=3, column=0, columnspan=6, sticky='e', padx=5, pady=5)
+        
+        add_button = ttk.Button(button_frame, text="Ajouter ligne", command=self.add_product_line)
+        add_button.pack(side='left', padx=5)
+        
+        delete_button = ttk.Button(button_frame, text="Supprimer ligne", command=self.delete_product_line)
+        delete_button.pack(side='left', padx=5)
+        
+        # Section totaux
+        totals_frame = ttk.Frame(frame, padding=10)
+        totals_frame.grid(row=3, column=0, columnspan=6, sticky='ew', padx=10, pady=5)
+        
         self.total_ht_var = tk.StringVar(value="0.00")
         self.total_tva_var = tk.StringVar(value="0.00")
         self.total_remise_var = tk.StringVar(value="0.00")
         self.total_ttc_var = tk.StringVar(value="0.00")
-
-        ttk.Label(frame, text="Total HT :").grid(row=product_start_row+3, column=3, sticky='e')
-        ttk.Label(frame, textvariable=self.total_ht_var).grid(row=product_start_row+3, column=4, sticky='w')
-        ttk.Label(frame, text="Total TVA :").grid(row=product_start_row+4, column=3, sticky='e')
-        ttk.Label(frame, textvariable=self.total_tva_var).grid(row=product_start_row+4, column=4, sticky='w')
-        ttk.Label(frame, text="Total Remise :").grid(row=product_start_row+5, column=3, sticky='e')
-        ttk.Label(frame, textvariable=self.total_remise_var).grid(row=product_start_row+5, column=4, sticky='w')
-        ttk.Label(frame, text="Total TTC :").grid(row=product_start_row+6, column=3, sticky='e')
-        ttk.Label(frame, textvariable=self.total_ttc_var).grid(row=product_start_row+6, column=4, sticky='w')
+        
+        # Style pour les labels de totaux
+        total_label_style = {"font": ("Segoe UI", 10), "padding": 5}
+        total_value_style = {"font": ("Segoe UI", 10, "bold"), "foreground": self.colors["secondary"], "padding": 5}
+        
+        ttk.Label(totals_frame, text="Total HT :", **total_label_style).grid(row=0, column=4, sticky='e')
+        ttk.Label(totals_frame, textvariable=self.total_ht_var, **total_value_style).grid(row=0, column=5, sticky='w')
+        
+        ttk.Label(totals_frame, text="Total Remise :", **total_label_style).grid(row=1, column=4, sticky='e')
+        ttk.Label(totals_frame, textvariable=self.total_remise_var, **total_value_style).grid(row=1, column=5, sticky='w')
+        
+        ttk.Label(totals_frame, text="Total TVA :", **total_label_style).grid(row=2, column=4, sticky='e')
+        ttk.Label(totals_frame, textvariable=self.total_tva_var, **total_value_style).grid(row=2, column=5, sticky='w')
+        
+        ttk.Label(totals_frame, text="Total TTC :", **total_label_style).grid(row=3, column=4, sticky='e')
+        ttk.Label(totals_frame, textvariable=self.total_ttc_var, **total_value_style).grid(row=3, column=5, sticky='w')
+        
+        # Bouton pour générer le PDF
+        action_frame = ttk.Frame(frame)
+        action_frame.grid(row=4, column=0, columnspan=6, sticky='e', padx=10, pady=20)
+        
+        pdf_button = ttk.Button(action_frame, text="Générer PDF", command=self.generate_pdf)
+        pdf_button.pack()
+        
+        # Configurer l'expansion des lignes et colonnes
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(2, weight=1)
 
     def delete_product_line(self):
         selected_item = self.tree.selection()
@@ -287,26 +500,49 @@ class FacturationApp(tk.Tk):
         self.total_tva_var.set(f"{total_tva:.2f}")
         self.total_ttc_var.set(f"{total_ttc:.2f}")
 
-    # Ajoutez cette méthode après update_totals et avant le bloc if __name__ == "__main__"
     def create_historique_view(self):
         frame = self.historique_frame
         
+        # Titre de la section
+        title_label = ttk.Label(frame, text="Historique des factures", 
+                               font=("Segoe UI", 16, "bold"), 
+                               foreground=self.colors["primary"])
+        title_label.grid(row=0, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 20))
+        
         # Créer un Treeview pour afficher l'historique des factures
         columns = ("Date", "Numéro", "Client", "Total HT", "Total TTC")
-        self.history_tree = ttk.Treeview(frame, columns=columns, show='headings')
+        self.history_tree = ttk.Treeview(frame, columns=columns, show='headings', height=15)
         
-        for col in columns:
+        for i, col in enumerate(columns):
             self.history_tree.heading(col, text=col)
-            self.history_tree.column(col, width=100)
+            width = 150 if i < 2 else 120
+            self.history_tree.column(col, width=width)
             
-        self.history_tree.pack(fill='both', expand=True, padx=10, pady=10)
+        self.history_tree.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
         
-        # Ajouter un bouton pour ouvrir la facture sélectionnée
-        open_button = ttk.Button(frame, text="Ouvrir la facture", command=self.open_invoice)
-        open_button.pack(pady=10)
+        # Scrollbar pour l'historique
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.history_tree.yview)
+        scrollbar.grid(row=1, column=1, sticky='ns')
+        self.history_tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Cadre pour les boutons d'action
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=2, column=0, columnspan=2, sticky='e', padx=10, pady=20)
+        
+        refresh_button = ttk.Button(button_frame, text="Actualiser", 
+                                   command=self.load_invoice_history)
+        refresh_button.pack(side='left', padx=5)
+        
+        open_button = ttk.Button(button_frame, text="Ouvrir la facture", 
+                                command=self.open_invoice)
+        open_button.pack(side='left', padx=5)
         
         # Double-clic pour ouvrir une facture
         self.history_tree.bind("<Double-1>", lambda event: self.open_invoice())
+        
+        # Configurer l'expansion des lignes et colonnes
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
         
         # Charger l'historique des factures
         self.load_invoice_history()
